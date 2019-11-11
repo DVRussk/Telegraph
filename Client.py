@@ -65,8 +65,11 @@ class FirstForm(QMainWindow):
         self.Chat.input.clear()
 
     def initChat(self):
-        self.input_one.close()
-        self.btn.close()
+        self.input_log.close()
+        self.input_pas.close()
+        self.btn_login.close()
+        self.btn_logup.close()
+        self.error_label.close()
 
         self.initChatUi()
         self.progressChanged.connect(self.Chat.addMessage)
@@ -74,11 +77,13 @@ class FirstForm(QMainWindow):
     def initChatUi(self):
         self.Chat = TextList(self.width() / 3, 0, self.width() / 3 * 2, self.height(), self)
 
-    def LogIn(self):
-        loglen = int(self.input_one.text()[1])
-        self.alias = self.input_one.text()[2:2 + loglen]
-        self.sor.sendto((self.input_one.text()).encode('utf-8'),
-                        self.server)  # Уведомляем сервер о подключении
+    def log_in(self):
+        self.alias = self.input_log.text()
+        self.sor.sendto(
+            ('1' + str(len(self.input_log.text())) + self.input_log.text() + str(
+                len(self.input_pas.text())) + self.input_pas.text()).encode(
+                'utf-8'),
+            self.server)  # Уведомляем сервер о подключении
 
     def isLog(self, mes):
         if 'connected to server' in mes[1]:
@@ -86,20 +91,36 @@ class FirstForm(QMainWindow):
             self.Chat.addMessage(mes)
             self.progressChanged.disconnect(self.isLog)
         else:
+            self.error_label.setText(mes[0] + ': ' + mes[1])
             print('Error')
 
     def initLog(self):
         width = QApplication.desktop().width()
+        frame_width = (width / 2.5) / 3 * 4
+        frame_height = (width / 2.5)
         self.setGeometry(0, 0, (width / 2.5) / 3 * 4, (width / 2.5))
         self.setWindowTitle('ТелеграфЪ')
 
-        self.btn = QPushButton('Рассчитать', self)
-        self.btn.resize(100, 50)
-        self.btn.move(100, 250)
+        self.error_label = QLabel(self)
+        self.error_label.resize(frame_width / 3, frame_height / 12)
+        self.error_label.move(frame_width / 2 - (frame_width / 8), frame_height * 0.50)
+        self.error_label.setWordWrap(True)
 
-        self.input_one = QLineEdit(self)
-        self.input_one.resize(100, 50)
-        self.input_one.move(25, 0)
+        self.btn_login = QPushButton('Log In', self)
+        self.btn_login.resize(frame_width / 2.5, frame_height / 10)
+        self.btn_login.move(frame_width / 2 - (frame_width / 5), frame_height * 0.60)
+
+        self.btn_logup = QPushButton('Log Up', self)
+        self.btn_logup.resize(frame_width / 4, frame_height / 14)
+        self.btn_logup.move(frame_width / 2 - (frame_width / 8), frame_height * 0.73)
+
+        self.input_log = QLineEdit(self)
+        self.input_log.resize(frame_width / 2, frame_height / 15)
+        self.input_log.move(frame_width / 2 - (frame_width / 4), frame_height * 0.35)
+
+        self.input_pas = QLineEdit(self)
+        self.input_pas.resize(frame_width / 2, frame_height / 15)
+        self.input_pas.move(frame_width / 2 - (frame_width / 4), frame_height * 0.45)
 
         self.server = 'localhost', 9090  # Данные сервера
         self.sor = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -109,7 +130,8 @@ class FirstForm(QMainWindow):
         self.thread1 = threading.Thread(target=self.read_sok)
         self.thread1.start()
         self.progressChanged.connect(self.isLog)
-        self.btn.clicked.connect(self.LogIn)
+        self.btn_login.clicked.connect(self.log_in)
+        self.btn_logup.clicked.connect(self.log_up)
 
         self.coords = QLabel(self)
         self.coords.setText("a " * 10000)
@@ -118,6 +140,14 @@ class FirstForm(QMainWindow):
         self.coords.setWordWrap(True)
         self.coords.close()
         self.show()
+
+    def log_up(self):
+        self.alias = self.input_log
+        self.sor.sendto(
+            ('2' + str(len(self.input_log.text())) + self.input_log.text() + str(
+                len(self.input_pas.text())) + self.input_pas.text()).encode(
+                'utf-8'),
+            self.server)  # Уведомляем сервер о подключении
 
     def mouseMoveEvent(self, event):
         pass
@@ -131,7 +161,7 @@ class FirstForm(QMainWindow):
             loglen = int(data[0])
             data.find(' ')
             print(data)
-            self.progressChanged.emit((data[1:1+loglen], data[1+loglen:]))
+            self.progressChanged.emit((data[1:1 + loglen], data[1 + loglen:]))
 
 
 if __name__ == '__main__':

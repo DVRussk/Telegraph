@@ -24,6 +24,7 @@ def massSend(mes, clients):
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 sock.bind(('', 9090))
 users = readTable('users.txt')
+logins = list(map(lambda x: x[0], users))
 clients = []  # Массив где храним адреса клиентов
 print('Start Server')
 while 1:
@@ -47,6 +48,23 @@ while 1:
                 print('Ok')
             else:
                 sock.sendto((str(len('Server'))+'ServerInvalid login or password').encode('utf-8'), adress)
+                print('Error')
+        elif de_data[0] == '2':
+            loglen = int(de_data[1])
+            passlen = int(de_data[2 + loglen])
+            log = de_data[2:2 + loglen]
+            pas = de_data[3 + loglen: 3 + loglen + passlen]
+            print(log, pas)
+            print(users)
+            if log not in logins:
+                clients.append(adress)
+                massSend((str(len(log)) + log + 'connected to server').encode('utf-8'), clients)
+                users.append([log, pas])
+                logins.append(log)
+                writeTable('users.txt', users)
+                print('Ok')
+            else:
+                sock.sendto((str(len('Server'))+'ServerLogin is not available').encode('utf-8'), adress)
                 print('Error')
     except Exception as e:
         print(e)
