@@ -33,7 +33,6 @@ class TextList(QWidget):
         self.btnIn.show()
 
     def addMessage(self, message):
-        print(message)
         self.messages.append((message, QLabel(self.form)))
         self.messages[-1][1].setWordWrap(True)
         self.messages[-1][1].setMaximumWidth(self.width * 0.9)
@@ -43,7 +42,6 @@ class TextList(QWidget):
             self.messages[-1][1].setText(message[0] + ':\n' + message[1])
         self.messages[-1][1].adjustSize()
         for i in self.messages[-2::-1]:
-            print(i)
             i[1].move(self.x_pos * 1.05,
                       i[1].y() - self.messages[-1][1].height() - self.chat_height * 0.06)
         self.messages[-1][1].move(self.x_pos * 1.05,
@@ -62,26 +60,33 @@ class FirstForm(QMainWindow):
     def sendMes(self):
         if ''.join(self.Chat.input.text().split()) == '':
             return
-        self.sor.sendto((self.alias + ' ' + self.Chat.input.text()).encode('utf-8'), self.server)
+        self.sor.sendto(('0' + str(len(self.alias)) + self.alias + self.Chat.input.text()).encode('utf-8'),
+                        self.server)
         self.Chat.input.clear()
 
     def initChat(self):
-        self.server = 'localhost', 9090  # Данные сервера
-        self.alias = self.input_one.text()  # Вводим наш псевдоним
         self.input_one.close()
         self.btn.close()
-        self.sor = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self.sor.bind(('', 0))  # Задаем сокет как клиент
-        self.sor.connect(('localhost', 9090))
-        self.sor.sendto((self.alias + ' Connect to server').encode('utf-8'),
-                        self.server)  # Уведомляем сервер о подключении
+
         self.initChatUi()
         self.progressChanged.connect(self.Chat.addMessage)
-        self.thread1 = threading.Thread(target=self.read_sok)
-        self.thread1.start()
 
     def initChatUi(self):
         self.Chat = TextList(self.width() / 3, 0, self.width() / 3 * 2, self.height(), self)
+
+    def LogIn(self):
+        loglen = int(self.input_one.text()[1])
+        self.alias = self.input_one.text()[2:2 + loglen]
+        self.sor.sendto((self.input_one.text()).encode('utf-8'),
+                        self.server)  # Уведомляем сервер о подключении
+
+    def isLog(self, mes):
+        if 'connected to server' in mes[1]:
+            self.initChat()
+            self.Chat.addMessage(mes)
+            self.progressChanged.disconnect(self.isLog)
+        else:
+            print('Error')
 
     def initLog(self):
         width = QApplication.desktop().width()
@@ -96,13 +101,22 @@ class FirstForm(QMainWindow):
         self.input_one.resize(100, 50)
         self.input_one.move(25, 0)
 
-        self.btn.clicked.connect(self.initChat)
+        self.server = 'localhost', 9090  # Данные сервера
+        self.sor = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.sor.bind(('', 0))  # Задаем сокет как клиент
+        self.sor.connect(('localhost', 9090))
+
+        self.thread1 = threading.Thread(target=self.read_sok)
+        self.thread1.start()
+        self.progressChanged.connect(self.isLog)
+        self.btn.clicked.connect(self.LogIn)
 
         self.coords = QLabel(self)
-        # self.coords.setText("a " * 10000)
+        self.coords.setText("a " * 10000)
         self.coords.move(self.width() / 3, 0)
         self.coords.resize(self.width() / 3 * 2, self.height() * 0.9)
         self.coords.setWordWrap(True)
+        self.coords.close()
         self.show()
 
     def mouseMoveEvent(self, event):
@@ -114,9 +128,10 @@ class FirstForm(QMainWindow):
     def read_sok(self):
         while 1:
             data = self.sor.recv(1024).decode('utf-8')
+            loglen = int(data[0])
             data.find(' ')
-            # self.Chat.addMessage((data[0:data.find(' ')], data[data.find(' '):]))
-            self.progressChanged.emit((data[0:data.find(' ')], data[data.find(' '):]))
+            print(data)
+            self.progressChanged.emit((data[1:1+loglen], data[1+loglen:]))
 
 
 if __name__ == '__main__':
