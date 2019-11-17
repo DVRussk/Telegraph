@@ -17,21 +17,21 @@ import socket
 #         data2.append([i[0], i[1], i[2:]])
 #     return list(data2)
 
-def writeUsers(table):
+def write_users(table):
     file = open('users.txt', 'w')
     file.write('\n'.join(map(lambda y: ';'.join(y), table)))
     file.close()
     return
 
 
-def readUsers():
+def read_users():
     file = open('users.txt', 'r')
     data = list(map(lambda d: d.split(';'), file.read().split('\n')))
     file.close()
     return list(data)
 
 
-def readChats():
+def read_chats():
     file = open('chats.txt', 'r')
     data = list(map(lambda d: d.split(';'), file.read().split('\n')))
     file.close()
@@ -39,6 +39,15 @@ def readChats():
     for i in data:
         data2.append([i[0], i[1], i[2:]])
     return list(data2)
+
+
+def write_chats(table):
+    file = open('chats.txt', 'w')
+    table = table.copy()
+    table = map(lambda y: [y[0], y[1]] + y[2], table)
+    file.write('\n'.join(map(lambda y: ';'.join(y), table)))
+    file.close()
+    return
 
 
 def massSend(mes, clients):
@@ -55,6 +64,30 @@ def decode_text_message(message):
     message_out['text'] = message[2 + loglen + 9 + 9:]
     message_out['to_send'] = message
     return message_out
+
+
+def decode_invite_message(message):
+    message_out = {}
+    loglen = int(message[1])
+    message_out['login'] = message[2:2 + loglen]
+    message_out['chat_id'] = message[2 + loglen:2 + loglen + 9]
+    message_out['invited_login'] = message[2 + loglen + 9:]
+    return message_out
+
+
+def invite_to_chat(message, chats, online_users):
+    chat = list(filter(lambda x: x[1] == message['chat_id'], chats))
+    if len(chat) == 0:
+        return
+    chat = chat[0]
+    if message['login'] in chat[2] and message['invited_login'] not in chat:
+        chat[2].append(message['invited_login'])
+        if message['invited_login'] in online_users:
+            for i in online_users[message['invited_login']]:
+                sock.sendto(('2' + str(message['chat_id'])).encode('utf-8'), i)
+        sock.sendto(('1' + str(len('Server')) + 'ServerUser was successfully invited').encode('utf-8'),
+                    message['adress'])
+        write_chats(chats)
 
 
 def send_to_chat(message, chats):
@@ -76,14 +109,14 @@ def configure_message(adress, log, chats):
     for i in chats:
         if log in i[2]:
             active_chats.append(i[1])
-    sock.sendto(('2'+';'.join(active_chats)).encode('utf-8'), adress)
+    sock.sendto(('2' + ';'.join(active_chats)).encode('utf-8'), adress)
 
 
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 sock.bind(('', 9090))
-all_users = readUsers()
+all_users = read_users()
 online_users = {}
-chats = readChats()
+chats = read_chats()
 logins = list(map(lambda x: x[0], all_users))
 
 clients = []
@@ -155,10 +188,17 @@ while 1:
             else:
                 online_users[log] = [adress]
             logins.append(log)
-            writeUsers(all_users)
+            write_users(all_users)
             print('Ok')
         else:
             sock.sendto((str(len('Server')) + 'ServerLogin is not available').encode('utf-8'), adress)
             print('Error')
+    elif de_data[0] == '3' and adress in clients:
+        message = decode_invite_message(de_data)
+        message['adress'] = adress
+        if adress in online_users[message['login']]:
+            invite_to_chat(message, chats, online_users)
+    else:
+        sock.sendto((str(len('Server')) + 'ServerUnknown request').encode('utf-8'), adress)
 #    except Exception as e:
 #        print(e)

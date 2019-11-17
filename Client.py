@@ -1,8 +1,8 @@
-import queue
+import random
 import sys
 import socket
 import threading
-from PyQt5.QtWidgets import QMainWindow, QLabel, QVBoxLayout, QFrame
+from PyQt5.QtWidgets import QMainWindow, QLabel, QVBoxLayout, QFrame, QInputDialog
 from PyQt5.QtWidgets import QApplication, QWidget, QPushButton, QLabel
 from PyQt5.QtWidgets import QLCDNumber, QLineEdit
 from PyQt5 import QtCore, QtGui, QtWidgets
@@ -72,6 +72,7 @@ class FirstForm(QMainWindow):
 
     def __init__(self):
         super().__init__()
+        self.create_chat_btn, self.invite_to_chat_btn = None, None
         self.Chats = {}
         self.Btns = {}
         self.initLog()
@@ -80,8 +81,10 @@ class FirstForm(QMainWindow):
     def sendMes(self):
         if ''.join(self.Chats[self.current_chat].input.text().split()) == '':
             return
-        self.sor.sendto(('0' + str(len(self.alias)) + self.alias + self.current_chat * 2 + self.Chats[
-            self.current_chat].input.text()).encode('utf-8'),
+        self.sor.sendto(('0' + str(len(self.alias)) + self.alias + self.current_chat + str(random.randint(100000000,
+                                                                                                          999999999)) +
+                         self.Chats[
+                             self.current_chat].input.text()).encode('utf-8'),
                         self.server)
         self.Chats[self.current_chat].input.clear()
 
@@ -110,13 +113,38 @@ class FirstForm(QMainWindow):
             if message['chat_id'] in self.Chats:
                 self.Chats[message['chat_id']].addMessage(message)
         elif raw_message[0] == '1':
-            pass
+            print(raw_message)
+        elif raw_message[0] == '2':
+            self.add_chat(raw_message[1:])
+
+    def add_chat(self, num):
+        print(num)
+        width = QApplication.desktop().width()
+        frame_width = (width / 2.5) / 3 * 4
+        frame_height = (width / 2.5)
+        self.Chats[num] = TextList(self.width() / 3, 0, self.width() / 3 * 2, self.height(), self)
+        self.Btns[num] = QPushButton(num, self)
+        self.Btns[num].resize(frame_width / 3, frame_height / 10)
+        self.Btns[num].move(0, frame_height / 10 * (len(self.Chats)-1))
+        self.Btns[num].clicked.connect(self.choose_chat)
+        self.Btns[num].show()
 
     def choose_chat(self):
         if self.current_chat is not None:
             self.Chats[self.current_chat].hide()
         self.current_chat = self.sender().text()
         self.Chats[self.current_chat].show()
+
+    def invite(self):
+        chat, ok = QInputDialog().getItem(self, "Inviting",
+                                          "Chat", self.Chats, 0, False)
+        if ok:
+            login, ok = QInputDialog().getText(self, "Inviting", "Login")
+            self.sor.sendto(('3' + str(len(self.alias)) + self.alias + str(chat) + login).encode('utf-8'),
+                            self.server)
+
+    def create(self):
+        pass
 
     def initChatUi(self, chats):
         width = QApplication.desktop().width()
@@ -129,6 +157,19 @@ class FirstForm(QMainWindow):
             self.Btns[i].move(0, frame_height / 10 * j)
             self.Btns[i].clicked.connect(self.choose_chat)
             self.Btns[i].show()
+
+        self.create_chat_btn = QPushButton('Create new chat', self)
+        self.create_chat_btn.resize(frame_width / 6, frame_height / 10)
+        self.create_chat_btn.move(0, frame_height * 0.9)
+        self.create_chat_btn.clicked.connect(self.create)
+        self.create_chat_btn.show()
+
+        self.invite_to_chat_btn = QPushButton('Invite new member', self)
+        self.invite_to_chat_btn.resize(frame_width / 6, frame_height / 10)
+        self.invite_to_chat_btn.move(frame_width / 6, frame_height * 0.9)
+        self.invite_to_chat_btn.clicked.connect(self.invite)
+        self.invite_to_chat_btn.show()
+
         if self.current_chat in self.Chats:
             self.Chats[self.current_chat].show()
 
