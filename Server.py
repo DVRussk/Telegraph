@@ -114,6 +114,7 @@ def configure_message(adress, log, chats):
 
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 sock.bind(('', 9090))
+print(socket.gethostbyname(socket.getfqdn()))
 all_users = read_users()
 online_users = {}
 chats = read_chats()

@@ -125,7 +125,7 @@ class FirstForm(QMainWindow):
         self.Chats[num] = TextList(self.width() / 3, 0, self.width() / 3 * 2, self.height(), self)
         self.Btns[num] = QPushButton(num, self)
         self.Btns[num].resize(frame_width / 3, frame_height / 10)
-        self.Btns[num].move(0, frame_height / 10 * (len(self.Chats)-1))
+        self.Btns[num].move(0, frame_height / 10 * (len(self.Chats) - 1))
         self.Btns[num].clicked.connect(self.choose_chat)
         self.Btns[num].show()
 
@@ -175,6 +175,8 @@ class FirstForm(QMainWindow):
 
     def log_in(self):
         self.alias = self.input_log.text()
+        print('1' + str(len(self.input_log.text())) + self.input_log.text() + str(
+            len(self.input_pas.text())) + self.input_pas.text(), self.server)
         self.sor.sendto(
             ('1' + str(len(self.input_log.text())) + self.input_log.text() + str(
                 len(self.input_pas.text())) + self.input_pas.text()).encode(
@@ -217,10 +219,10 @@ class FirstForm(QMainWindow):
         self.input_pas.resize(frame_width / 2, frame_height / 15)
         self.input_pas.move(frame_width / 2 - (frame_width / 4), frame_height * 0.45)
 
-        self.server = 'localhost', 9090  # Данные сервера
+        self.server = '172.105.80.186', 9090  # Данные сервера
         self.sor = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.sor.bind(('', 0))  # Задаем сокет как клиент
-        self.sor.connect(('localhost', 9090))
+        self.sor.connect(('172.105.80.186', 9090))
 
         self.thread1 = threading.Thread(target=self.read_sok)
         self.thread1.start()
