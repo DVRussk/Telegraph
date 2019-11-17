@@ -17,6 +17,8 @@ class TextList(QWidget):
         self.x_pos, self.y_pos, self.width, self.chat_height = x_pos, y_pos, width, height * 0.9
         self.messages = list()
         self.inputUi()
+        self.hide_state = True
+        self.hide()
 
     def inputUi(self):
         self.input = QLineEdit(self.form)
@@ -36,10 +38,10 @@ class TextList(QWidget):
         self.messages.append((message, QLabel(self.form)))
         self.messages[-1][1].setWordWrap(True)
         self.messages[-1][1].setMaximumWidth(self.width * 0.9)
-        if len(self.messages) > 1 and self.messages[-2][0][0] == self.messages[-1][0][0]:
-            self.messages[-1][1].setText(message[1])
+        if len(self.messages) > 1 and self.messages[-2][0]['login'] == self.messages[-1][0]['login']:
+            self.messages[-1][1].setText(message['text'])
         else:
-            self.messages[-1][1].setText(message[0] + ':\n' + message[1])
+            self.messages[-1][1].setText(message['login'] + ':\n' + message['text'])
         self.messages[-1][1].adjustSize()
         for i in self.messages[-2::-1]:
             i[1].move(self.x_pos * 1.05,
@@ -47,35 +49,88 @@ class TextList(QWidget):
         self.messages[-1][1].move(self.x_pos * 1.05,
                                   self.y_pos + self.chat_height - self.messages[-1][
                                       1].height() - self.chat_height * 0.03)
-        self.messages[-1][1].show()
+        if not self.hide_state:
+            self.messages[-1][1].show()
+
+    def hide(self):
+        self.hide_state = True
+        self.input.hide()
+        self.btnIn.hide()
+        for i in self.messages:
+            i[1].hide()
+
+    def show(self):
+        self.hide_state = False
+        self.input.show()
+        self.btnIn.show()
+        for i in self.messages:
+            i[1].show()
 
 
 class FirstForm(QMainWindow):
-    progressChanged = QtCore.pyqtSignal(tuple)
+    progressChanged = QtCore.pyqtSignal(str)
 
     def __init__(self):
         super().__init__()
+        self.Chats = {}
+        self.Btns = {}
         self.initLog()
+        self.current_chat = None
 
     def sendMes(self):
-        if ''.join(self.Chat.input.text().split()) == '':
+        if ''.join(self.Chats[self.current_chat].input.text().split()) == '':
             return
-        self.sor.sendto(('0' + str(len(self.alias)) + self.alias + self.Chat.input.text()).encode('utf-8'),
+        self.sor.sendto(('0' + str(len(self.alias)) + self.alias + self.current_chat * 2 + self.Chats[
+            self.current_chat].input.text()).encode('utf-8'),
                         self.server)
-        self.Chat.input.clear()
+        self.Chats[self.current_chat].input.clear()
 
-    def initChat(self):
+    def initChat(self, chats):
         self.input_log.close()
         self.input_pas.close()
         self.btn_login.close()
         self.btn_logup.close()
         self.error_label.close()
 
-        self.initChatUi()
-        self.progressChanged.connect(self.Chat.addMessage)
+        self.progressChanged.connect(self.receive_message)
+        self.initChatUi(chats)
 
-    def initChatUi(self):
-        self.Chat = TextList(self.width() / 3, 0, self.width() / 3 * 2, self.height(), self)
+    def decode_message(self, raw_message):
+        message_out = {}
+        loglen = int(raw_message[1])
+        message_out['login'] = raw_message[2:2 + loglen]
+        message_out['chat_id'] = raw_message[2 + loglen:2 + loglen + 9]
+        message_out['message_id'] = raw_message[2 + loglen + 9:2 + loglen + 9 + 9]
+        message_out['text'] = raw_message[2 + loglen + 9 + 9:]
+        return message_out
+
+    def receive_message(self, raw_message):
+        if raw_message[0] == '0':
+            message = self.decode_message(raw_message)
+            if message['chat_id'] in self.Chats:
+                self.Chats[message['chat_id']].addMessage(message)
+        elif raw_message[0] == '1':
+            pass
+
+    def choose_chat(self):
+        if self.current_chat is not None:
+            self.Chats[self.current_chat].hide()
+        self.current_chat = self.sender().text()
+        self.Chats[self.current_chat].show()
+
+    def initChatUi(self, chats):
+        width = QApplication.desktop().width()
+        frame_width = (width / 2.5) / 3 * 4
+        frame_height = (width / 2.5)
+        for j, i in enumerate(chats):
+            self.Chats[i] = TextList(self.width() / 3, 0, self.width() / 3 * 2, self.height(), self)
+            self.Btns[i] = QPushButton(i, self)
+            self.Btns[i].resize(frame_width / 3, frame_height / 10)
+            self.Btns[i].move(0, frame_height / 10 * j)
+            self.Btns[i].clicked.connect(self.choose_chat)
+            self.Btns[i].show()
+        if self.current_chat in self.Chats:
+            self.Chats[self.current_chat].show()
 
     def log_in(self):
         self.alias = self.input_log.text()
@@ -86,10 +141,9 @@ class FirstForm(QMainWindow):
             self.server)  # Уведомляем сервер о подключении
 
     def isLog(self, mes):
-        if 'connected to server' in mes[1]:
-            self.initChat()
-            self.Chat.addMessage(mes)
+        if mes[0] == '2':
             self.progressChanged.disconnect(self.isLog)
+            self.initChat(mes[1:].split(';'))
         else:
             self.error_label.setText(mes[0] + ': ' + mes[1])
             print('Error')
@@ -158,10 +212,8 @@ class FirstForm(QMainWindow):
     def read_sok(self):
         while 1:
             data = self.sor.recv(1024).decode('utf-8')
-            loglen = int(data[0])
-            data.find(' ')
             print(data)
-            self.progressChanged.emit((data[1:1 + loglen], data[1 + loglen:]))
+            self.progressChanged.emit(data)
 
 
 if __name__ == '__main__':

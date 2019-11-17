@@ -1,0 +1,2 @@
+test chat;098890765;user;lg
+test chat2;098890766;user
