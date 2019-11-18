@@ -1,2 +1,3 @@
-test chat;098890765;user;lg
-test chat2;098890766;user
+test1;000000000;user;lg
+test2;761186915;user;lg
+lg3;388069603;lg;user

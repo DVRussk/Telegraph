@@ -1,3 +1,2 @@
 user;ps
-lg;ps2
-lg2;ps
+lg;ps

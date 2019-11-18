@@ -2,6 +2,8 @@ import random
 import sys
 import socket
 import threading
+from functools import partial
+
 from PyQt5.QtWidgets import QMainWindow, QLabel, QVBoxLayout, QFrame, QInputDialog
 from PyQt5.QtWidgets import QApplication, QWidget, QPushButton, QLabel
 from PyQt5.QtWidgets import QLCDNumber, QLineEdit
@@ -30,7 +32,7 @@ class TextList(QWidget):
         self.btnIn.resize(self.width * 0.20, self.full_height * 0.09)
         self.btnIn.move(self.x_pos + self.width * 0.01 + self.width * 0.79,
                         self.y_pos + self.chat_height + self.full_height * 0.005)
-        self.btnIn.clicked.connect(self.form.sendMes)
+        self.btnIn.clicked.connect(self.form.send_mes)
         self.input.show()
         self.btnIn.show()
 
@@ -72,13 +74,15 @@ class FirstForm(QMainWindow):
 
     def __init__(self):
         super().__init__()
+        self.server = '172.105.80.186', 9090
         self.create_chat_btn, self.invite_to_chat_btn = None, None
         self.Chats = {}
         self.Btns = {}
-        self.initLog()
+        self.init_log()
         self.current_chat = None
+        self.chat_names = {}
 
-    def sendMes(self):
+    def send_mes(self):
         if ''.join(self.Chats[self.current_chat].input.text().split()) == '':
             return
         self.sor.sendto(('0' + str(len(self.alias)) + self.alias + self.current_chat + str(random.randint(100000000,
@@ -88,7 +92,7 @@ class FirstForm(QMainWindow):
                         self.server)
         self.Chats[self.current_chat].input.clear()
 
-    def initChat(self, chats):
+    def init_chat(self, chats):
         self.input_log.close()
         self.input_pas.close()
         self.btn_login.close()
@@ -115,48 +119,54 @@ class FirstForm(QMainWindow):
         elif raw_message[0] == '1':
             print(raw_message)
         elif raw_message[0] == '2':
-            self.add_chat(raw_message[1:])
+            self.chat_names[raw_message[1:10]] = raw_message[10:]
+            self.add_chat(raw_message[1:10])
 
     def add_chat(self, num):
-        print(num)
         width = QApplication.desktop().width()
         frame_width = (width / 2.5) / 3 * 4
         frame_height = (width / 2.5)
+        print(self.chat_names)
         self.Chats[num] = TextList(self.width() / 3, 0, self.width() / 3 * 2, self.height(), self)
-        self.Btns[num] = QPushButton(num, self)
+        self.Btns[num] = QPushButton(self.chat_names[num], self)
         self.Btns[num].resize(frame_width / 3, frame_height / 10)
         self.Btns[num].move(0, frame_height / 10 * (len(self.Chats) - 1))
-        self.Btns[num].clicked.connect(self.choose_chat)
+        self.Btns[num].clicked.connect(partial(self.choose_chat, num))
         self.Btns[num].show()
 
-    def choose_chat(self):
+    def choose_chat(self, number):
         if self.current_chat is not None:
             self.Chats[self.current_chat].hide()
-        self.current_chat = self.sender().text()
-        self.Chats[self.current_chat].show()
+        self.current_chat = number
+        self.Chats[number].show()
 
     def invite(self):
+        chat_names = {}
+        for i in self.Chats:
+            chat_names[self.chat_names[i]] = i
+        print(chat_names)
         chat, ok = QInputDialog().getItem(self, "Inviting",
-                                          "Chat", self.Chats, 0, False)
+                                          "Chat", chat_names, 0, False)
         if ok:
             login, ok = QInputDialog().getText(self, "Inviting", "Login")
-            self.sor.sendto(('3' + str(len(self.alias)) + self.alias + str(chat) + login).encode('utf-8'),
+            self.sor.sendto(('3' + str(len(self.alias)) + self.alias + chat_names[chat] + login).encode('utf-8'),
                             self.server)
 
     def create(self):
-        pass
+        chat_name, ok = QInputDialog().getText(self, "Inviting", "Login")
+        if ok:
+            self.sor.sendto(('4' + str(len(self.alias)) + self.alias + chat_name).encode('utf-8'),
+                            self.server)
 
     def initChatUi(self, chats):
         width = QApplication.desktop().width()
         frame_width = (width / 2.5) / 3 * 4
         frame_height = (width / 2.5)
+        print(chats)
         for j, i in enumerate(chats):
-            self.Chats[i] = TextList(self.width() / 3, 0, self.width() / 3 * 2, self.height(), self)
-            self.Btns[i] = QPushButton(i, self)
-            self.Btns[i].resize(frame_width / 3, frame_height / 10)
-            self.Btns[i].move(0, frame_height / 10 * j)
-            self.Btns[i].clicked.connect(self.choose_chat)
-            self.Btns[i].show()
+            if i == '':
+                continue
+            self.add_chat(i)
 
         self.create_chat_btn = QPushButton('Create new chat', self)
         self.create_chat_btn.resize(frame_width / 6, frame_height / 10)
@@ -175,8 +185,6 @@ class FirstForm(QMainWindow):
 
     def log_in(self):
         self.alias = self.input_log.text()
-        print('1' + str(len(self.input_log.text())) + self.input_log.text() + str(
-            len(self.input_pas.text())) + self.input_pas.text(), self.server)
         self.sor.sendto(
             ('1' + str(len(self.input_log.text())) + self.input_log.text() + str(
                 len(self.input_pas.text())) + self.input_pas.text()).encode(
@@ -186,12 +194,18 @@ class FirstForm(QMainWindow):
     def isLog(self, mes):
         if mes[0] == '2':
             self.progressChanged.disconnect(self.isLog)
-            self.initChat(mes[1:].split(';'))
+            mes = mes[1:].split(';')
+            mes_out = []
+            for i in mes:
+                self.chat_names[i[:9]] = i[9:]
+                mes_out.append(i[:9])
+                print(i[:9])
+            self.init_chat(mes_out)
         else:
             self.error_label.setText(mes[0] + ': ' + mes[1])
             print('Error')
 
-    def initLog(self):
+    def init_log(self):
         width = QApplication.desktop().width()
         frame_width = (width / 2.5) / 3 * 4
         frame_height = (width / 2.5)
@@ -219,10 +233,9 @@ class FirstForm(QMainWindow):
         self.input_pas.resize(frame_width / 2, frame_height / 15)
         self.input_pas.move(frame_width / 2 - (frame_width / 4), frame_height * 0.45)
 
-        self.server = '172.105.80.186', 9090  # Данные сервера
         self.sor = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.sor.bind(('', 0))  # Задаем сокет как клиент
-        self.sor.connect(('172.105.80.186', 9090))
+        self.sor.connect(self.server)
 
         self.thread1 = threading.Thread(target=self.read_sok)
         self.thread1.start()
@@ -239,18 +252,11 @@ class FirstForm(QMainWindow):
         self.show()
 
     def log_up(self):
-        self.alias = self.input_log
+        self.alias = self.input_log.text()
         self.sor.sendto(
             ('2' + str(len(self.input_log.text())) + self.input_log.text() + str(
-                len(self.input_pas.text())) + self.input_pas.text()).encode(
-                'utf-8'),
+                len(self.input_pas.text())) + self.input_pas.text()).encode('utf-8'),
             self.server)  # Уведомляем сервер о подключении
-
-    def mouseMoveEvent(self, event):
-        pass
-        # print(self.coords.sizeHint())
-        # self.coords.setText('f ' * event.x())
-        # self.coords.resize(100, self.coords.sizeHint().height())
 
     def read_sok(self):
         while 1:
